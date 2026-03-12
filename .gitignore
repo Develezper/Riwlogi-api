@@ -1,0 +1,23 @@
+
+# Entorno virtual
+venv/
+.venv/
+env/
+
+# Variables de entorno reales (NUNCA subir al repo)
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
