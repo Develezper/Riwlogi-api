@@ -20,6 +20,12 @@ fallback automático, por lo que el backend Node.js nunca se ve afectado.
 ## Instalación y arranque
 
 ```bash
+# Crear el entorno virtual
+python3 -m venv venv
+
+# Activar el entorno virtual
+source venv/bin/activate
+
 # 1. Instalar dependencias
 pip install -r requirements.txt
 
