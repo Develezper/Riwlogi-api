@@ -20,6 +20,12 @@ fallback automático, por lo que el backend Node.js nunca se ve afectado.
 ## Instalación y arranque
 
 ```bash
+# Crear el entorno virtual
+python3 -m venv venv
+
+# Activar el entorno virtual
+source venv/bin/activate
+
 # 1. Instalar dependencias
 pip install -r requirements.txt
 
@@ -93,6 +99,40 @@ Valores posibles de `label`:
 - `"assisted"` — uso moderado de herramientas IA / autocompletado
 - `"ai_generated"` — código principalmente pegado / generado por IA
 
+### `POST /generate-problem`
+Genera un ejercicio completo para el panel admin a partir de un prompt.
+
+**Request:**
+```json
+{
+  "prompt": "Crea un ejercicio sobre reverse string con 3 etapas progresivas."
+}
+```
+
+**Response (resumen):**
+```json
+{
+  "title": "Reverse String",
+  "difficulty": 1,
+  "tags": ["strings", "two-pointers"],
+  "statement_md": "## Description ...",
+  "starter_code": {
+    "python": "def solve(chars): ...",
+    "javascript": "function solve(chars) { ... }"
+  },
+  "stages": [
+    {
+      "stage_index": 1,
+      "prompt_md": "Reverse the input array in-place.",
+      "hidden_count": 2,
+      "visible_tests": [
+        { "input_text": "['h','e','l','l','o']", "expected_text": "['o','l','l','e','h']" }
+      ]
+    }
+  ]
+}
+```
+
 ---
 
 ## Variables de entorno
@@ -101,6 +141,7 @@ Valores posibles de `label`:
 |---|---|---|
 | `OPENAI_API_KEY` | *(requerido)* | API Key de OpenAI |
 | `OPENAI_MODEL` | `gpt-4o-mini` | Modelo de OpenAI a usar |
+| `OPENAI_GENERATION_MODEL` | `OPENAI_MODEL` | Modelo para el endpoint de generación de ejercicios |
 | `HOST` | `0.0.0.0` | Host del servidor |
 | `PORT` | `8001` | Puerto del servidor |
 | `CORS_ORIGINS` | `*` | Orígenes permitidos (lista separada por comas) |
@@ -117,6 +158,7 @@ api/
 ├── main.py          # App FastAPI, endpoints, lifespan
 ├── models.py        # Modelos Pydantic (request/response)
 ├── classifier.py    # Lógica OpenAI + fallback heurístico
+├── problem_generator.py # Prompt interno + generación de ejercicios
 ├── requirements.txt
 ├── .env.example
 └── README.md

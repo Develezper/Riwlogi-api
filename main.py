@@ -10,7 +10,13 @@ from fastapi.responses import JSONResponse
 load_dotenv()
 
 from classifier import classify
-from models import ClassifyRequest, ClassifyResponse
+from models import (
+    ClassifyRequest,
+    ClassifyResponse,
+    GenerateProblemRequest,
+    GenerateProblemResponse,
+)
+from problem_generator import generate_problem
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 
@@ -83,6 +89,22 @@ async def classify_endpoint(request: ClassifyRequest):
     """
     result = await classify(request)
     logger.info("classify → label=%s confidence=%s", result.label, result.confidence)
+    return result
+
+
+@app.post("/generate-problem", response_model=GenerateProblemResponse, tags=["Generator"])
+async def generate_problem_endpoint(request: GenerateProblemRequest):
+    """
+    Genera un ejercicio completo (editable) para el admin:
+    titulo, dificultad, tags, enunciado, starter code y una etapa con tests.
+    """
+    result = await generate_problem(request)
+    logger.info(
+        "generate-problem → title=%s difficulty=%s stages=%s",
+        result.title,
+        result.difficulty,
+        len(result.stages),
+    )
     return result
 
 
