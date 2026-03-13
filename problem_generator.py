@@ -131,15 +131,10 @@ def normalize_visible_tests(raw_tests):
             if len(tests) >= 6:
                 break
 
-    if tests:
-        return tests
+    if not tests:
+        raise ValueError("visible_tests must include at least one valid test case")
 
-    return [
-        {
-            "input_text": "example_input_stage_1",
-            "expected_text": "example_output_stage_1",
-        }
-    ]
+    return tests
 
 
 def normalize_single_stage(raw_stages):
@@ -149,26 +144,17 @@ def normalize_single_stage(raw_stages):
     prompt_md = str(raw_stage.get("prompt_md") or "").strip()
     hidden_count = clamp_int(raw_stage.get("hidden_count"), 2, 0, 2000)
 
+    if len(prompt_md) < 3:
+        raise ValueError("stage prompt_md is required")
+
     return [
         {
             "stage_index": 1,
-            "prompt_md": prompt_md or DEFAULT_STAGE_PROMPT,
+            "prompt_md": prompt_md,
             "hidden_count": hidden_count,
             "visible_tests": normalize_visible_tests(raw_stage.get("visible_tests")),
         }
     ]
-
-
-def build_fallback_payload(prompt: str):
-    title = infer_title(prompt)
-    return {
-        "title": title,
-        "difficulty": 2,
-        "tags": ["ai-generated"],
-        "statement_md": f"## Description\n\n{prompt}\n\n## Notes\n\nSolve the problem using the function `solve`.",
-        "starter_code": DEFAULT_STARTER_CODE,
-        "stages": normalize_single_stage([]),
-    }
 
 
 def normalize_generated_payload(raw_data, prompt: str) -> GenerateProblemResponse:
@@ -178,28 +164,28 @@ def normalize_generated_payload(raw_data, prompt: str) -> GenerateProblemRespons
     title = str(raw_data.get("title") or "").strip()[:140]
     difficulty = clamp_int(raw_data.get("difficulty"), 2, 1, 3)
     statement_md = str(raw_data.get("statement_md") or "").strip()
+
+    if len(statement_md) < 10:
+        raise ValueError("statement_md is missing or too short")
+
     payload = {
         "title": title or infer_title(prompt),
         "difficulty": difficulty,
         "tags": normalize_tags(raw_data.get("tags")),
-        "statement_md": statement_md or build_fallback_payload(prompt)["statement_md"],
+        "statement_md": statement_md,
         "starter_code": normalize_starter_code(raw_data.get("starter_code")),
         "stages": normalize_single_stage(raw_data.get("stages")),
     }
 
-    try:
-        return GenerateProblemResponse.model_validate(payload)
-    except Exception as exc:
-        logger.warning("Generated payload validation failed (%s), using fallback payload.", exc)
-        return GenerateProblemResponse.model_validate(build_fallback_payload(prompt))
+    return GenerateProblemResponse.model_validate(payload)
 
 
 async def generate_problem(request: GenerateProblemRequest) -> GenerateProblemResponse:
     prompt = request.prompt
 
     if not os.getenv("OPENAI_API_KEY"):
-        logger.warning("OPENAI_API_KEY not set for problem generation. Using fallback payload.")
-        return GenerateProblemResponse.model_validate(build_fallback_payload(prompt))
+        logger.error("OPENAI_API_KEY not set for problem generation.")
+        raise RuntimeError("Problem generation is unavailable because OPENAI_API_KEY is not configured")
 
     model = os.getenv("OPENAI_GENERATION_MODEL", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
     user_message = f"""Genera un ejercicio a partir de este prompt del usuario:
@@ -233,6 +219,5 @@ Regla obligatoria: devuelve exactamente una etapa en \"stages\" con stage_index=
         )
         return result
     except Exception as exc:
-        logger.warning("OpenAI generation failed (%s), using fallback payload.", exc)
-        fallback = build_fallback_payload(prompt)
-        return GenerateProblemResponse.model_validate(fallback)
+        logger.error("OpenAI generation failed (%s).", exc)
+        raise RuntimeError("Problem generation failed due to upstream AI error") from exc
