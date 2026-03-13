@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -67,10 +68,12 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception: %s", exc, exc_info=True)
-    # Devolvemos fallback en lugar de 500 para no romper el backend Node.js
+    if isinstance(exc, HTTPException):
+        return JSONResponse(status_code=exc.status_code, content={"message": exc.detail})
+
     return JSONResponse(
-        status_code=200,
-        content={"label": "human", "confidence": 0.55},
+        status_code=500,
+        content={"message": "Internal classifier API error."},
     )
 
 
@@ -98,7 +101,12 @@ async def generate_problem_endpoint(request: GenerateProblemRequest):
     Genera un ejercicio completo (editable) para el admin:
     titulo, dificultad, tags, enunciado, starter code y una etapa con tests.
     """
-    result = await generate_problem(request)
+    try:
+        result = await generate_problem(request)
+    except Exception as exc:
+        logger.error("generate-problem failed: %s", exc, exc_info=True)
+        raise HTTPException(status_code=502, detail="Problem generation upstream failed") from exc
+
     logger.info(
         "generate-problem → title=%s difficulty=%s stages=%s",
         result.title,
