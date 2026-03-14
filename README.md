@@ -19,12 +19,34 @@ fallback automático, por lo que el backend Node.js nunca se ve afectado.
 
 ## Instalación y arranque
 
+### Opcion recomendada (un solo comando)
+
+Desde la carpeta `api/`:
+
+```bash
+make run
+```
+
+o:
+
+```bash
+./start.sh
+```
+
+Este script:
+- Crea `.venv` (si no existe)
+- Instala dependencias de `requirements.txt`
+- Crea `.env` desde `.env.example` (si no existe)
+- Levanta `uvicorn` con `--reload`
+
+### Opcion manual
+
 ```bash
 # Crear el entorno virtual
-python3 -m venv venv
+python3 -m venv .venv
 
 # Activar el entorno virtual
-source venv/bin/activate
+source .venv/bin/activate
 
 # 1. Instalar dependencias
 pip install -r requirements.txt
@@ -55,6 +77,17 @@ En producción, apunta a la URL donde esté desplegada esta API:
 ```env
 CLASSIFIER_API_BASE=https://tu-classifier-api.com
 ```
+
+## Despliegue en Render (Docker)
+
+Este repo incluye `render.yaml` y `Dockerfile` para desplegar con contenedor.
+Puntos importantes:
+- El servicio en `render.yaml` usa `env: docker` (no runtime Python).
+- Render inyecta `PORT` automaticamente.
+- El health check usa `GET /health`.
+
+Variable obligatoria en Render:
+- `OPENAI_API_KEY`
 
 ---
 
