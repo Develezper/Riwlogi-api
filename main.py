@@ -4,20 +4,13 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 load_dotenv()
 
 from classifier import classify
-from models import (
-    ClassifyRequest,
-    ClassifyResponse,
-    GenerateProblemRequest,
-    GenerateProblemResponse,
-)
-from problem_generator import generate_problem
+from models import ClassifyRequest, ClassifyResponse
 
 # ── Logging ──────────────────────────────────────────────────────────────────
 
@@ -68,12 +61,10 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception: %s", exc, exc_info=True)
-    if isinstance(exc, HTTPException):
-        return JSONResponse(status_code=exc.status_code, content={"message": exc.detail})
-
+    # Devolvemos fallback en lugar de 500 para no romper el backend Node.js
     return JSONResponse(
-        status_code=500,
-        content={"message": "Internal classifier API error."},
+        status_code=200,
+        content={"label": "human", "confidence": 0.55},
     )
 
 
@@ -92,27 +83,6 @@ async def classify_endpoint(request: ClassifyRequest):
     """
     result = await classify(request)
     logger.info("classify → label=%s confidence=%s", result.label, result.confidence)
-    return result
-
-
-@app.post("/generate-problem", response_model=GenerateProblemResponse, tags=["Generator"])
-async def generate_problem_endpoint(request: GenerateProblemRequest):
-    """
-    Genera un ejercicio completo (editable) para el admin:
-    titulo, dificultad, tags, enunciado, starter code y una etapa con tests.
-    """
-    try:
-        result = await generate_problem(request)
-    except Exception as exc:
-        logger.error("generate-problem failed: %s", exc, exc_info=True)
-        raise HTTPException(status_code=502, detail="Problem generation upstream failed") from exc
-
-    logger.info(
-        "generate-problem → title=%s difficulty=%s stages=%s",
-        result.title,
-        result.difficulty,
-        len(result.stages),
-    )
     return result
 
 
