@@ -103,10 +103,11 @@ Reglas para "starter_code":
 - No incluyas lógica del algoritmo resuelto.
 - Solo define la función solve con una estructura base simple.
 - La función debe recibir un string y devolver un string.
-- Usa exactamente estas firmas conceptuales:
+- Usa exactamente estas firmas conceptuales, OBLIGANDO a incluir el parámetro `input_text` en la firma:
   - Python: def solve(input_text: str) -> str:
   - JavaScript: function solve(input_text) { ... }
   - TypeScript: function solve(input_text: string): string { ... }
+  - NUNCA omitas el parámetro `input_text` en la definición de la función.
 
 Reglas para tests:
 - Cada "input_text" debe representar exactamente la entrada cruda del problema.
