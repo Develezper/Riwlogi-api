@@ -1,198 +1,159 @@
 # Riwlogi Classifier API
 
-API FastAPI que clasifica el comportamiento de programación de un usuario
-usando OpenAI. Se integra con el backend Node.js de Riwlogi via `CLASSIFIER_API_BASE`.
+A FastAPI-based service designed to analyze user programming behavior and generate automated development exercises.
 
-Este servicio vive en la carpeta `api/` del monorepo (antes `classifier-api`).
+The project has two main objectives:
+*   **Authorship Detection:** Classifies whether code was written by a human, assisted by AI (e.g., Copilot), or entirely AI-generated, based on keyboard biometrics (typing, pasting, deleting, etc.) and code stylometry.
+*   **Problem Generation:** Creates structured programming challenges (statement, starter code in multiple languages, and test cases) from a user prompt.
 
-## Cómo funciona
-
-Cuando un usuario envía código, el backend Node.js envía los eventos de
-interacción (teclas, pegado, borrado, ejecuciones) a esta API. OpenAI analiza
-el patrón y devuelve si el código fue escrito por un humano, asistido por IA
-o generado por IA.
-
-Si OpenAI no está disponible o falla, la API usa una **heurística local** como
-fallback automático, por lo que el backend Node.js nunca se ve afectado.
+This service integrates with the Riwlogi Node.js backend via `CLASSIFIER_API_BASE`.
 
 ---
 
-## Instalación y arranque
+## Features
 
-### Opcion recomendada (un solo comando)
+- **Hybrid Classification:** Uses OpenAI's advanced models (e.g., `gpt-4o-mini`) to analyze the last 50 relevant events and up to 4,000 characters of code.
+- **Local Heuristic Fallback:** If the AI service is unavailable, a local heuristic based on `paste_ratio` (the ratio between pasted and typed text) provides an automatic fallback.
+- **Automated Problem Generation:** Generates complex JSON objects including titles, difficulty levels, Markdown statements, and unit tests for Python, JavaScript, and TypeScript.
+- **Ready for Production:** Docker-ready and optimized for deployment on platforms like Render.
 
-Desde la carpeta `api/`:
+---
+
+## Tech Stack
+
+- **Framework:** [FastAPI](https://fastapi.tiangolo.com/) (Python 3.11+)
+- **Server:** [Uvicorn](https://www.uvicorn.org/)
+- **AI Integration:** [OpenAI API](https://openai.com/api/)
+- **Validation:** [Pydantic v2](https://docs.pydantic.dev/latest/)
+- **Deployment:** Docker & Makefile automation
+
+---
+
+## Installation and Startup
+
+### Recommended (One Command)
+
+From the project root:
 
 ```bash
 make run
 ```
 
-o:
+or:
 
 ```bash
 ./start.sh
 ```
 
-Este script:
-- Crea `.venv` (si no existe)
-- Instala dependencias de `requirements.txt`
-- Crea `.env` desde `.env.example` (si no existe)
-- Levanta `uvicorn` con `--reload`
+This script will:
+- Create a `.venv` (if it doesn't exist).
+- Install dependencies from `requirements.txt`.
+- Copy `.env.example` to `.env` (if it doesn't exist).
+- Start the `uvicorn` server with `--reload`.
 
-### Opcion manual
+### Manual Installation
 
-```bash
-# Crear el entorno virtual
-python3 -m venv .venv
+1. **Create and activate a virtual environment:**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
 
-# Activar el entorno virtual
-source .venv/bin/activate
+2. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-# 1. Instalar dependencias
-pip install -r requirements.txt
+3. **Configure environment variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env and add your OPENAI_API_KEY
+   ```
 
-# 2. Configurar variables de entorno
-cp .env.example .env
-# Edita .env y agrega tu OPENAI_API_KEY
+4. **Start the server:**
+   ```bash
+   uvicorn main:app --host 0.0.0.0 --port 8001 --reload
+   ```
 
-# 3. Levantar el servidor
-uvicorn main:app --host 0.0.0.0 --port 8001 --reload
-```
-
-La API estará disponible en: `http://localhost:8001`
-Documentación interactiva: `http://localhost:8001/docs`
-
----
-
-## Configuración en el backend Node.js
-
-Agrega esta variable al `.env` del backend Riwlogi:
-
-```env
-CLASSIFIER_API_BASE=http://localhost:8001
-```
-
-En producción, apunta a la URL donde esté desplegada esta API:
-
-```env
-CLASSIFIER_API_BASE=https://tu-classifier-api.com
-```
-
-## Despliegue en Render (Docker)
-
-Este repo incluye `render.yaml` y `Dockerfile` para desplegar con contenedor.
-Puntos importantes:
-- El servicio en `render.yaml` usa `env: docker` (no runtime Python).
-- Render inyecta `PORT` automaticamente.
-- El health check usa `GET /health`.
-
-Variable obligatoria en Render:
-- `OPENAI_API_KEY`
+The API will be available at: `http://localhost:8001`
+Interactive documentation: `http://localhost:8001/docs`
 
 ---
 
-## Endpoints
+## API Endpoints
 
 ### `GET /health`
-Health check para verificar que la API está activa.
-
-```json
-{ "ok": true, "status": "ok" }
-```
+Health check to verify the service status.
+**Response:** `{ "ok": true, "status": "ok" }`
 
 ### `POST /classify`
-Clasifica el comportamiento de programación.
-
-**Request:**
+Classifies the programming behavior based on interaction events and source code.
+**Request Body:**
 ```json
 {
-  "events": [
-    { "type": "key", "char_count": 5, "timestamp": "2026-03-11T10:00:00.000Z" },
-    { "type": "paste", "char_count": 320, "timestamp": "2026-03-11T10:00:05.000Z" }
-  ],
+  "events": [...],
   "summary": {
     "key": 40,
     "paste": 320,
     "delete": 10,
     "run": 1
-  }
+  },
+  "code": "..."
 }
 ```
-
 **Response:**
 ```json
 {
-  "label": "ai_generated",
-  "confidence": 0.91
+  "label": "human" | "assisted" | "ai_generated",
+  "confidence": 0.95
 }
 ```
-
-Valores posibles de `label`:
-- `"human"` — código escrito manualmente
-- `"assisted"` — uso moderado de herramientas IA / autocompletado
-- `"ai_generated"` — código principalmente pegado / generado por IA
 
 ### `POST /generate-problem`
-Genera un ejercicio completo para el panel admin a partir de un prompt.
-
-**Request:**
+Generates a complete programming exercise for the admin panel from a prompt.
+**Request Body:**
 ```json
 {
-  "prompt": "Crea un ejercicio sobre reverse string con 3 etapas progresivas."
+  "prompt": "Create a string manipulation exercise."
 }
 ```
-
-**Response (resumen):**
-```json
-{
-  "title": "Reverse String",
-  "difficulty": 1,
-  "tags": ["strings", "two-pointers"],
-  "statement_md": "## Description ...",
-  "starter_code": {
-    "python": "def solve(chars): ...",
-    "javascript": "function solve(chars) { ... }"
-  },
-  "stages": [
-    {
-      "stage_index": 1,
-      "prompt_md": "Reverse the input array in-place.",
-      "hidden_count": 2,
-      "visible_tests": [
-        { "input_text": "['h','e','l','l','o']", "expected_text": "['o','l','l','e','h']" }
-      ]
-    }
-  ]
-}
-```
+**Response:** A detailed JSON object containing `title`, `difficulty`, `tags`, `statement_md`, `starter_code`, and `stages` with test cases.
 
 ---
 
-## Variables de entorno
+## Environment Variables
 
-| Variable | Default | Descripción |
+| Variable | Default | Description |
 |---|---|---|
-| `OPENAI_API_KEY` | *(requerido)* | API Key de OpenAI |
-| `OPENAI_MODEL` | `gpt-4o-mini` | Modelo de OpenAI a usar |
-| `OPENAI_GENERATION_MODEL` | `OPENAI_MODEL` | Modelo para el endpoint de generación de ejercicios |
-| `HOST` | `0.0.0.0` | Host del servidor |
-| `PORT` | `8001` | Puerto del servidor |
-| `CORS_ORIGINS` | `*` | Orígenes permitidos (lista separada por comas) |
-
-> Si levantas la API desde el backend Node.js (autostart), puedes controlar el host/puerto
-> con `CLASSIFIER_API_HOST` y `CLASSIFIER_API_PORT` en el `.env` del backend.
+| `OPENAI_API_KEY` | *(Required)* | Your OpenAI API Key |
+| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model for classification |
+| `OPENAI_GENERATION_MODEL` | `gpt-4o-mini` | OpenAI model for problem generation |
+| `HOST` | `0.0.0.0` | Server host |
+| `PORT` | `8001` | Server port |
+| `CORS_ORIGINS` | `*` | Allowed CORS origins (comma-separated list) |
 
 ---
 
-## Estructura del proyecto
+## Project Structure
 
+```text
+.
+├── main.py              # FastAPI entry point & endpoints
+├── classifier.py        # OpenAI classification logic & heuristics
+├── problem_generator.py # Logic for generating coding challenges
+├── models.py            # Pydantic data models
+├── Makefile             # Automation for common tasks
+├── Dockerfile           # Containerization setup
+├── README.md            # You are here
+└── requirements.txt     # Python dependencies
 ```
-api/
-├── main.py          # App FastAPI, endpoints, lifespan
-├── models.py        # Modelos Pydantic (request/response)
-├── classifier.py    # Lógica OpenAI + fallback heurístico
-├── problem_generator.py # Prompt interno + generación de ejercicios
-├── requirements.txt
-├── .env.example
-└── README.md
-```
+
+---
+
+## Deployment on Render (Docker)
+
+This repository includes `render.yaml` and a `Dockerfile`.
+- Render uses `env: docker`.
+- The `PORT` is automatically injected by Render.
+- Health checks use `GET /health`.
+- Remember to set `OPENAI_API_KEY` in the Render environment settings.
