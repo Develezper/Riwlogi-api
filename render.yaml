@@ -10,10 +10,14 @@ services:
     healthCheckPath: /health
 
     envVars:
+      - key: AI_PROVIDER
+        value: openai
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
         value: gpt-4o-mini
+      - key: GEMINI_API_KEY
+        sync: false
       - key: HOST
         value: 0.0.0.0
       - key: CORS_ORIGINS

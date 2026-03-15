@@ -1,23 +1,14 @@
 import json
 import logging
 import os
-from openai import AsyncOpenAI
 
+from ai_provider import chat_completion, has_any_provider
 from models import ClassifyRequest, ClassifyResponse, EventSummary
 
 logger = logging.getLogger(__name__)
 
-_client: AsyncOpenAI | None = None
 
-
-def get_client() -> AsyncOpenAI:
-    global _client
-    if _client is None:
-        _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    return _client
-
-
-# ── Heurística local (fallback si OpenAI falla) ─────────────────────────────
+# ── Heurística local (fallback si la IA falla) ──────────────────────────────
 
 def classify_heuristic(summary: EventSummary) -> ClassifyResponse:
     total_input = summary.key + summary.paste
@@ -40,7 +31,7 @@ def classify_heuristic(summary: EventSummary) -> ClassifyResponse:
     return ClassifyResponse(label=label, confidence=confidence)
 
 
-# ── Clasificador con OpenAI ──────────────────────────────────────────────────
+# ── Clasificador con IA ──────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """Eres un sistema experto en análisis de biometría de teclado y estilometría de código.
 Tu tarea es analizar métricas de interacción del usuario y código fuente para clasificar su autoría.
@@ -75,8 +66,8 @@ Tu tarea es analizar métricas de interacción del usuario y código fuente para
 """
 
 
-async def classify_with_openai(request: ClassifyRequest) -> ClassifyResponse:
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+async def classify_with_ai(request: ClassifyRequest) -> ClassifyResponse:
+    model = os.getenv("AI_CLASSIFY_MODEL", os.getenv("OPENAI_MODEL"))
 
     # Tomar los últimos 50 eventos más relevantes (key, paste, delete)
     relevant_events = [
@@ -123,19 +114,17 @@ RESUMEN DE EVENTOS:
 Clasifica el comportamiento del programador considerando tanto los eventos de interacción como el estilo del código."""
 
     try:
-        client = get_client()
-        response = await client.chat.completions.create(
-            model=model,
-            max_tokens=100,
-            temperature=0.1,
-            response_format={"type": "json_object"},
+        raw = await chat_completion(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
+            model=model,
+            max_tokens=100,
+            temperature=0.1,
+            json_mode=True,
         )
 
-        raw = response.choices[0].message.content or "{}"
         data = json.loads(raw)
 
         label = data.get("label", "").strip()
@@ -146,18 +135,18 @@ Clasifica el comportamiento del programador considerando tanto los eventos de in
         confidence = float(confidence_raw) if confidence_raw is not None else classify_heuristic(summary).confidence
         confidence = round(max(0.0, min(1.0, confidence)), 2)
 
-        logger.info("OpenAI classify OK — label=%s confidence=%s paste_ratio=%s", label, confidence, paste_ratio)
+        logger.info("AI classify OK — label=%s confidence=%s paste_ratio=%s", label, confidence, paste_ratio)
         return ClassifyResponse(label=label, confidence=confidence)
 
     except Exception as exc:
-        logger.warning("OpenAI classify failed (%s), using heuristic fallback.", exc)
+        logger.warning("AI classify failed (%s), using heuristic fallback.", exc)
         return classify_heuristic(summary)
 
 
 async def classify(request: ClassifyRequest) -> ClassifyResponse:
     """Punto de entrada principal. Siempre devuelve un resultado válido."""
-    if not os.getenv("OPENAI_API_KEY"):
-        logger.warning("OPENAI_API_KEY not set — using heuristic fallback.")
+    if not has_any_provider():
+        logger.warning("No AI provider configured — using heuristic fallback.")
         return classify_heuristic(request.summary)
 
-    return await classify_with_openai(request)
+    return await classify_with_ai(request)

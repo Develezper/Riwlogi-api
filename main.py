@@ -12,6 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(dotenv_path=BASE_DIR / ".env")
 load_dotenv(dotenv_path=BASE_DIR / ".env.local", override=True)
 
+from ai_provider import provider_info
 from classifier import classify
 from models import (
     ClassifyRequest,
@@ -35,16 +36,18 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-    api_key_set = bool(os.getenv("OPENAI_API_KEY"))
-    logger.info("Classifier API starting — model=%s api_key_set=%s", model, api_key_set)
+    info = provider_info()
+    logger.info(
+        "Classifier API starting — provider=%s openai_key=%s gemini_key=%s",
+        info["provider"], info["openai_key_set"], info["gemini_key_set"],
+    )
     yield
     logger.info("Classifier API shutting down.")
 
 
 app = FastAPI(
     title="Riwlogi Classifier API",
-    description="Clasifica comportamiento de programación usando OpenAI.",
+    description="Clasifica comportamiento de programación usando IA (OpenAI / Gemini).",
     version="1.0.0",
     lifespan=lifespan,
 )

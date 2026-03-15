@@ -3,13 +3,10 @@ import logging
 import os
 import re
 
-from openai import AsyncOpenAI
-
+from ai_provider import chat_completion, has_any_provider
 from models import GenerateProblemRequest, GenerateProblemResponse
 
 logger = logging.getLogger(__name__)
-
-_client: AsyncOpenAI | None = None
 
 DEFAULT_STARTER_CODE = {
     "python": "def solve(data):\n    # Write your solution here\n    pass",
@@ -136,13 +133,6 @@ Antes de responder, valida internamente todo esto:
 
 Genera ahora un único ejercicio completo.
 """
-
-
-def get_client() -> AsyncOpenAI:
-    global _client
-    if _client is None:
-        _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    return _client
 
 
 def clamp_int(value, default, minimum, maximum):
@@ -290,11 +280,11 @@ def normalize_generated_payload(raw_data, prompt: str) -> GenerateProblemRespons
 async def generate_problem(request: GenerateProblemRequest) -> GenerateProblemResponse:
     prompt = request.prompt
 
-    if not os.getenv("OPENAI_API_KEY"):
-        logger.error("OPENAI_API_KEY not set for problem generation.")
-        raise RuntimeError("Problem generation is unavailable because OPENAI_API_KEY is not configured")
+    if not has_any_provider():
+        logger.error("No AI provider configured for problem generation.")
+        raise RuntimeError("Problem generation is unavailable because no AI provider is configured")
 
-    model = os.getenv("OPENAI_GENERATION_MODEL", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+    model = os.getenv("AI_GENERATION_MODEL", os.getenv("OPENAI_MODEL"))
     user_message = f"""Genera un ejercicio a partir de este prompt del usuario:
 
 PROMPT_USUARIO:
@@ -303,28 +293,26 @@ PROMPT_USUARIO:
 Regla obligatoria: devuelve exactamente una etapa en \"stages\" con stage_index=1."""
 
     try:
-        client = get_client()
-        response = await client.chat.completions.create(
-            model=model,
-            temperature=0.25,
-            max_tokens=2500,
-            response_format={"type": "json_object"},
+        raw = await chat_completion(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
+            model=model,
+            max_tokens=2500,
+            temperature=0.25,
+            json_mode=True,
         )
 
-        raw = response.choices[0].message.content or "{}"
         parsed = json.loads(raw)
         result = normalize_generated_payload(parsed, prompt)
         logger.info(
-            "OpenAI generation OK — title=%s difficulty=%s stages=%s",
+            "AI generation OK — title=%s difficulty=%s stages=%s",
             result.title,
             result.difficulty,
             len(result.stages),
         )
         return result
     except Exception as exc:
-        logger.error("OpenAI generation failed (%s).", exc)
+        logger.error("AI generation failed (%s).", exc)
         raise RuntimeError("Problem generation failed due to upstream AI error") from exc
