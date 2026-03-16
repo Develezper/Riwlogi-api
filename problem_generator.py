@@ -116,6 +116,9 @@ Reglas para tests:
 - Los visibles deben ayudar a entender el problema.
 - Los ocultos deben cubrir al menos uno de estos: mínimo, máximo razonable, borde, repetidos, vacíos si aplica, formato sensible, empate si aplica.
 - No generes tests redundantes.
+- Importante para ejecución automática: cuando la entrada sea texto o incluya espacios (por ejemplo `3 5`, `Hola Mundo`, `a,b,c`), SIEMPRE debes tratarla como string literal y escribirla con comillas en los ejemplos del enunciado (por ejemplo, "3 5").
+- Nunca asumas que input_text se inyectará como código Python/JavaScript; debe ser texto crudo interpretable como argumento string para solve(input_text).
+- Si el caso representa números separados por espacios en una sola línea, el valor correcto de input_text sigue siendo una única cadena (ejemplo: "3 5"), no dos tokens sueltos.
 
 Guía de dificultad:
 - 1 = fácil: lógica directa, pocas reglas, implementación corta.
