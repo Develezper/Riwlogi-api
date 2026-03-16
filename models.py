@@ -20,11 +20,13 @@ class EventSummary(BaseModel):
     paste: int = Field(default=0, ge=0)
     delete: int = Field(default=0, ge=0)
     run: int = Field(default=0, ge=0)
+    focus: int = Field(default=0, ge=0)
 
 
 class ClassifyRequest(BaseModel):
     events: list[SubmissionEvent] = Field(default_factory=list)
     summary: EventSummary = Field(default_factory=EventSummary)
+    code: str = Field(default="", max_length=50_000)
 
 
 class ClassifyResponse(BaseModel):
@@ -63,13 +65,15 @@ class GeneratedStage(BaseModel):
     prompt_md: str = Field(min_length=3, max_length=8000)
     hidden_count: int = Field(default=0, ge=0, le=1000)
     visible_tests: list[VisibleTest] = Field(min_length=1, max_length=20)
+    hidden_tests: list[VisibleTest] = Field(default_factory=list, max_length=20)
 
 
 class StarterCode(BaseModel):
     python: str = Field(min_length=1, max_length=20000)
     javascript: str = Field(min_length=1, max_length=20000)
+    typescript: str = Field(min_length=1, max_length=20000)
 
-    @field_validator("python", "javascript", mode="before")
+    @field_validator("python", "javascript", "typescript", mode="before")
     @classmethod
     def normalize_code(cls, value):
         return str(value or "").rstrip()

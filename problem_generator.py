@@ -3,63 +3,137 @@ import logging
 import os
 import re
 
-from openai import AsyncOpenAI
-
+from ai_provider import chat_completion, has_any_provider
 from models import GenerateProblemRequest, GenerateProblemResponse
 
 logger = logging.getLogger(__name__)
 
-_client: AsyncOpenAI | None = None
-
 DEFAULT_STARTER_CODE = {
     "python": "def solve(data):\n    # Write your solution here\n    pass",
     "javascript": "function solve(data) {\n  // Write your solution here\n}",
+    "typescript": "function solve(data: string): string {\n  // Write your solution here\n}",
 }
 
 DEFAULT_STAGE_PROMPT = "Implementa la solucion completa."
 
 
-SYSTEM_PROMPT = """Eres un generador de ejercicios de programacion para una plataforma tipo coding challenge.
-Debes responder SOLO con JSON valido, sin markdown y sin texto extra.
+SYSTEM_PROMPT = """Eres un generador experto de ejercicios de programación para una plataforma tipo coding challenge.
 
-Objetivo:
-Crear un ejercicio completo y editable con esta estructura exacta:
+Tu tarea es crear un ejercicio completo, claro, resoluble y editable por un humano.
+Debes responder SOLO con un único objeto JSON válido.
+No uses markdown fuera de los strings del JSON.
+No agregues explicaciones, comentarios, texto antes o después, ni bloques de código.
+
+La salida debe seguir EXACTAMENTE esta estructura:
 {
   "title": "string",
-  "difficulty": 1 | 2 | 3,
-  "tags": ["string", "..."],
+  "difficulty": 1,
+  "tags": ["string"],
   "statement_md": "string en markdown",
   "starter_code": {
     "python": "string",
-    "javascript": "string"
+    "javascript": "string",
+    "typescript": "string"
   },
   "stages": [
     {
       "stage_index": 1,
       "prompt_md": "string markdown",
-      "hidden_count": 2,
+      "hidden_count": 1,
       "visible_tests": [
+        { "input_text": "string", "expected_text": "string" }
+      ],
+      "hidden_tests": [
         { "input_text": "string", "expected_text": "string" }
       ]
     }
   ]
 }
 
+Objetivo del ejercicio:
+- Debe ser un problema clásico de programación, claro y autocontenido.
+- Debe poder resolverse implementando una función solve.
+- Debe usar solo entrada y salida en texto.
+- Debe ser determinista, sin aleatoriedad, sin fecha/hora actual, sin red, sin archivos y sin librerías externas.
+- Debe quedar listo para que luego un humano lo edite manualmente.
+
 Reglas obligatorias:
-1) "stages" debe ser una lista con exactamente una etapa.
-2) La etapa unica debe incluir SIEMPRE: stage_index, prompt_md, hidden_count, visible_tests.
-3) stage_index debe ser 1.
-4) visible_tests debe tener minimo 1 caso.
-5) starter_code debe incluir python y javascript con funcion solve.
-6) difficulty solo puede ser 1 (facil), 2 (intermedio), 3 (dificil).
-7) El ejercicio debe quedar listo para que luego un humano lo edite manualmente."""
+1) "stages" debe ser un arreglo con exactamente 1 elemento.
+2) La única etapa debe incluir SIEMPRE: stage_index, prompt_md, hidden_count, visible_tests, hidden_tests.
+3) "stage_index" debe ser exactamente 1.
+4) "visible_tests" debe tener al menos 1 caso.
+5) "hidden_tests" debe tener al menos 1 caso.
+6) "hidden_count" debe ser exactamente igual a la cantidad real de elementos en "hidden_tests".
+7) "starter_code" debe incluir obligatoriamente "python", "javascript" y "typescript".
+8) En los tres lenguajes debe existir una función llamada solve.
+9) "difficulty" solo puede ser 1, 2 o 3.
+10) No agregues claves extra fuera de la estructura definida.
+11) Todos los strings deben ser válidos en JSON y estar correctamente escapados.
+12) El ejercicio no debe depender de conocimiento externo, contexto previo ni interpretación subjetiva.
+13) El enunciado, los tests y el starter code deben ser consistentes entre sí.
+14) Los tests visibles no deben contradecir los ocultos.
+15) Los tests ocultos deben cubrir edge cases o casos límite reales.
 
+Criterios de calidad del ejercicio:
+- El título debe ser corto, claro y específico.
+- Los tags deben ser útiles, en minúsculas, sin duplicados, entre 2 y 5 elementos.
+- La dificultad debe corresponder con la complejidad real del problema.
+- El problema debe ser resoluble en una sola función.
+- Evita problemas interactivos.
+- Evita problemas excesivamente largos o con reglas ambiguas.
+- Evita ejercicios triviales sin validación interesante.
+- Evita ejercicios imposibles de verificar solo con input_text y expected_text.
 
-def get_client() -> AsyncOpenAI:
-    global _client
-    if _client is None:
-        _client = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    return _client
+Formato requerido para "statement_md":
+Incluye estas secciones en este orden:
+1. ## Descripción
+2. ## Entrada
+3. ## Salida
+4. ## Restricciones
+5. ## Ejemplos
+
+Formato requerido para "prompt_md":
+- Debe ser una versión breve y operativa de la tarea.
+- Debe indicar claramente qué debe implementar el usuario.
+- Debe mencionar qué representa el input y qué debe devolver.
+
+Reglas para "starter_code":
+- Debe ser mínimo, limpio y editable.
+- No incluyas solución completa.
+- No incluyas lógica del algoritmo resuelto.
+- Solo define la función solve con una estructura base simple.
+- La función debe recibir un string y devolver un string.
+- Usa exactamente estas firmas conceptuales, OBLIGANDO a incluir el parámetro `input_text` en la firma:
+  - Python: def solve(input_text: str) -> str:
+  - JavaScript: function solve(input_text) { ... }
+  - TypeScript: function solve(input_text: string): string { ... }
+  - NUNCA omitas el parámetro `input_text` en la definición de la función.
+
+Reglas para tests:
+- Cada "input_text" debe representar exactamente la entrada cruda del problema.
+- Cada "expected_text" debe representar exactamente la salida esperada.
+- Usa casos pequeños pero representativos.
+- Los visibles deben ayudar a entender el problema.
+- Los ocultos deben cubrir al menos uno de estos: mínimo, máximo razonable, borde, repetidos, vacíos si aplica, formato sensible, empate si aplica.
+- No generes tests redundantes.
+
+Guía de dificultad:
+- 1 = fácil: lógica directa, pocas reglas, implementación corta.
+- 2 = intermedio: varios pasos, parsing moderado, algo de manejo de casos borde.
+- 3 = difícil: lógica más elaborada, varios casos, mayor cuidado algorítmico.
+
+Antes de responder, valida internamente todo esto:
+- El JSON es válido.
+- La estructura es exacta.
+- hidden_count coincide con hidden_tests.length.
+- Hay exactamente una etapa.
+- El problema es claro y resoluble.
+- Los tests coinciden con el enunciado.
+- El starter_code no contiene la solución.
+- La salida final contiene solo JSON válido.
+
+Genera ahora un único ejercicio completo.
+"""
 
 
 def clamp_int(value, default, minimum, maximum):
@@ -105,10 +179,12 @@ def normalize_starter_code(raw_starter):
     raw = raw_starter if isinstance(raw_starter, dict) else {}
     python_code = str(raw.get("python") or "").rstrip()
     javascript_code = str(raw.get("javascript") or "").rstrip()
+    typescript_code = str(raw.get("typescript") or "").rstrip()
 
     return {
         "python": python_code or DEFAULT_STARTER_CODE["python"],
         "javascript": javascript_code or DEFAULT_STARTER_CODE["javascript"],
+        "typescript": typescript_code or DEFAULT_STARTER_CODE["typescript"],
     }
 
 
@@ -137,6 +213,27 @@ def normalize_visible_tests(raw_tests):
     return tests
 
 
+def normalize_hidden_tests(raw_tests):
+    tests = []
+    if isinstance(raw_tests, list):
+        for raw in raw_tests:
+            if not isinstance(raw, dict):
+                continue
+            input_text = str(raw.get("input_text") or "").strip()
+            expected_text = str(raw.get("expected_text") or "").strip()
+            if not input_text or not expected_text:
+                continue
+            tests.append(
+                {
+                    "input_text": input_text[:2000],
+                    "expected_text": expected_text[:2000],
+                }
+            )
+            if len(tests) >= 20:
+                break
+    return tests
+
+
 def normalize_single_stage(raw_stages):
     source = raw_stages if isinstance(raw_stages, list) else []
     raw_stage = source[0] if source and isinstance(source[0], dict) else {}
@@ -153,6 +250,7 @@ def normalize_single_stage(raw_stages):
             "prompt_md": prompt_md,
             "hidden_count": hidden_count,
             "visible_tests": normalize_visible_tests(raw_stage.get("visible_tests")),
+            "hidden_tests": normalize_hidden_tests(raw_stage.get("hidden_tests")),
         }
     ]
 
@@ -183,11 +281,11 @@ def normalize_generated_payload(raw_data, prompt: str) -> GenerateProblemRespons
 async def generate_problem(request: GenerateProblemRequest) -> GenerateProblemResponse:
     prompt = request.prompt
 
-    if not os.getenv("OPENAI_API_KEY"):
-        logger.error("OPENAI_API_KEY not set for problem generation.")
-        raise RuntimeError("Problem generation is unavailable because OPENAI_API_KEY is not configured")
+    if not has_any_provider():
+        logger.error("No AI provider configured for problem generation.")
+        raise RuntimeError("Problem generation is unavailable because no AI provider is configured")
 
-    model = os.getenv("OPENAI_GENERATION_MODEL", os.getenv("OPENAI_MODEL", "gpt-4o-mini"))
+    model = os.getenv("AI_GENERATION_MODEL", os.getenv("OPENAI_MODEL"))
     user_message = f"""Genera un ejercicio a partir de este prompt del usuario:
 
 PROMPT_USUARIO:
@@ -196,28 +294,26 @@ PROMPT_USUARIO:
 Regla obligatoria: devuelve exactamente una etapa en \"stages\" con stage_index=1."""
 
     try:
-        client = get_client()
-        response = await client.chat.completions.create(
-            model=model,
-            temperature=0.25,
-            max_tokens=2500,
-            response_format={"type": "json_object"},
+        raw = await chat_completion(
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
+            model=model,
+            max_tokens=2500,
+            temperature=0.25,
+            json_mode=True,
         )
 
-        raw = response.choices[0].message.content or "{}"
         parsed = json.loads(raw)
         result = normalize_generated_payload(parsed, prompt)
         logger.info(
-            "OpenAI generation OK — title=%s difficulty=%s stages=%s",
+            "AI generation OK — title=%s difficulty=%s stages=%s",
             result.title,
             result.difficulty,
             len(result.stages),
         )
         return result
     except Exception as exc:
-        logger.error("OpenAI generation failed (%s).", exc)
+        logger.error("AI generation failed (%s).", exc)
         raise RuntimeError("Problem generation failed due to upstream AI error") from exc
