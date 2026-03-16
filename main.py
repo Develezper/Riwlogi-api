@@ -65,13 +65,13 @@ app.add_middleware(
 )
 
 
-# ── Exception handler global ─────────────────────────────────────────────────
+# ── Global exception handler ──────────────────────────────────────────────────
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error("Unhandled exception: %s", exc, exc_info=True)
     if request.url.path == "/classify":
-        # Solo classification debe degradar a un fallback exitoso.
+        # Only classification should degrade to a successful fallback.
         return JSONResponse(
             status_code=200,
             content={"label": "human", "confidence": 0.55},

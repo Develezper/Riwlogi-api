@@ -1,92 +1,91 @@
 # Riwlogi Classifier API
 
-API FastAPI que clasifica el comportamiento de programación de un usuario
-usando OpenAI. Se integra con el backend Node.js de Riwlogi via `CLASSIFIER_API_BASE`.
+FastAPI API that classifies user programming behavior using OpenAI.
+It integrates with the Riwlogi Node.js backend via `CLASSIFIER_API_BASE`.
 
-Este servicio vive en la carpeta `api/` del monorepo (antes `classifier-api`).
+This service lives in the `api/` folder of the monorepo (formerly `classifier-api`).
 
-## Cómo funciona
+## How it works
 
-Cuando un usuario envía código, el backend Node.js envía los eventos de
-interacción (teclas, pegado, borrado, ejecuciones) a esta API. OpenAI analiza
-el patrón y devuelve si el código fue escrito por un humano, asistido por IA
-o generado por IA.
+When a user submits code, the Node.js backend sends interaction events
+(keys, paste, delete, runs) to this API. OpenAI analyzes the pattern and
+returns whether the code was written by a human, AI-assisted, or AI-generated.
 
-Si OpenAI no está disponible o falla, la API usa una **heurística local** como
-fallback automático, por lo que el backend Node.js nunca se ve afectado.
+If OpenAI is unavailable or fails, the API uses a **local heuristic** as an
+automatic fallback, so the Node.js backend is never affected.
 
 ---
 
-## Instalación y arranque
+## Installation and Startup
 
-### Opcion recomendada (un solo comando)
+### Recommended option (single command)
 
-Desde la carpeta `api/`:
+From the `api/` folder:
 
 ```bash
 make run
 ```
 
-o:
+or:
 
 ```bash
 ./start.sh
 ```
 
-Este script:
-- Crea `.venv` (si no existe)
-- Instala dependencias de `requirements.txt`
-- Crea `.env` desde `.env.example` (si no existe)
-- Levanta `uvicorn` con `--reload`
+This script:
+- Creates `.venv` (if it doesn't exist)
+- Installs dependencies from `requirements.txt`
+- Creates `.env` from `.env.example` (if it doesn't exist)
+- Starts `uvicorn` with `--reload`
 
-### Opcion manual
+### Manual option
 
 ```bash
-# Crear el entorno virtual
+# Create the virtual environment
 python3 -m venv .venv
 
-# Activar el entorno virtual
+# Activate the virtual environment
 source .venv/bin/activate
 
-# 1. Instalar dependencias
+# 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Configurar variables de entorno
+# 2. Configure environment variables
 cp .env.example .env
-# Edita .env y agrega tu OPENAI_API_KEY
+# Edit .env and add your OPENAI_API_KEY
 
-# 3. Levantar el servidor
+# 3. Start the server
 uvicorn main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
-La API estará disponible en: `http://localhost:8001`
-Documentación interactiva: `http://localhost:8001/docs`
+The API will be available at: `http://localhost:8001`
+Interactive documentation: `http://localhost:8001/docs`
 
 ---
 
-## Configuración en el backend Node.js
+## Node.js Backend Configuration
 
-Agrega esta variable al `.env` del backend Riwlogi:
+Add this variable to the Riwlogi backend `.env`:
 
 ```env
 CLASSIFIER_API_BASE=http://localhost:8001
 ```
 
-En producción, apunta a la URL donde esté desplegada esta API:
+In production, point to the URL where this API is deployed:
 
 ```env
-CLASSIFIER_API_BASE=https://tu-classifier-api.com
+CLASSIFIER_API_BASE=https://your-classifier-api.com
 ```
 
-## Despliegue en Render (Docker)
+## Deployment on Render (Docker)
 
-Este repo incluye `render.yaml` y `Dockerfile` para desplegar con contenedor.
-Puntos importantes:
-- El servicio en `render.yaml` usa `env: docker` (no runtime Python).
-- Render inyecta `PORT` automaticamente.
-- El health check usa `GET /health`.
+This repo includes `render.yaml` and `Dockerfile` for container deployment.
+Important points:
+- The service in `render.yaml` uses `env: docker` (not Python runtime).
+- Render injects `PORT` automatically.
+- The health check uses `GET /health`.
 
-Variable obligatoria en Render:
+Required variable in Render:
 - `OPENAI_API_KEY`
 
 ---
@@ -94,14 +93,14 @@ Variable obligatoria en Render:
 ## Endpoints
 
 ### `GET /health`
-Health check para verificar que la API está activa.
+Health check to verify the API is active.
 
 ```json
 { "ok": true, "status": "ok" }
 ```
 
 ### `POST /classify`
-Clasifica el comportamiento de programación.
+Classifies programming behavior.
 
 **Request:**
 ```json
@@ -127,22 +126,22 @@ Clasifica el comportamiento de programación.
 }
 ```
 
-Valores posibles de `label`:
-- `"human"` — código escrito manualmente
-- `"assisted"` — uso moderado de herramientas IA / autocompletado
-- `"ai_generated"` — código principalmente pegado / generado por IA
+Possible `label` values:
+- `"human"` — manually written code
+- `"assisted"` — moderate use of AI tools / autocomplete
+- `"ai_generated"` — mainly pasted / AI-generated code
 
 ### `POST /generate-problem`
-Genera un ejercicio completo para el panel admin a partir de un prompt.
+Generates a complete exercise for the admin panel from a prompt.
 
 **Request:**
 ```json
 {
-  "prompt": "Crea un ejercicio sobre reverse string con 3 etapas progresivas."
+  "prompt": "Create a reverse string exercise with 3 progressive stages."
 }
 ```
 
-**Response (resumen):**
+**Response (summary):**
 ```json
 {
   "title": "Reverse String",
@@ -168,30 +167,30 @@ Genera un ejercicio completo para el panel admin a partir de un prompt.
 
 ---
 
-## Variables de entorno
+## Environment Variables
 
-| Variable | Default | Descripción |
+| Variable | Default | Description |
 |---|---|---|
-| `OPENAI_API_KEY` | *(requerido)* | API Key de OpenAI |
-| `OPENAI_MODEL` | `gpt-4o-mini` | Modelo de OpenAI a usar |
-| `OPENAI_GENERATION_MODEL` | `OPENAI_MODEL` | Modelo para el endpoint de generación de ejercicios |
-| `HOST` | `0.0.0.0` | Host del servidor |
-| `PORT` | `8001` | Puerto del servidor |
-| `CORS_ORIGINS` | `*` | Orígenes permitidos (lista separada por comas) |
+| `OPENAI_API_KEY` | *(required)* | OpenAI API Key |
+| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model to use |
+| `OPENAI_GENERATION_MODEL` | `OPENAI_MODEL` | Model for the exercise generation endpoint |
+| `HOST` | `0.0.0.0` | Server host |
+| `PORT` | `8001` | Server port |
+| `CORS_ORIGINS` | `*` | Allowed origins (comma-separated list) |
 
-> Si levantas la API desde el backend Node.js (autostart), puedes controlar el host/puerto
-> con `CLASSIFIER_API_HOST` y `CLASSIFIER_API_PORT` en el `.env` del backend.
+> If you start the API from the Node.js backend (autostart), you can control the host/port
+> with `CLASSIFIER_API_HOST` and `CLASSIFIER_API_PORT` in the backend `.env`.
 
 ---
 
-## Estructura del proyecto
+## Project Structure
 
 ```
 api/
-├── main.py          # App FastAPI, endpoints, lifespan
-├── models.py        # Modelos Pydantic (request/response)
-├── classifier.py    # Lógica OpenAI + fallback heurístico
-├── problem_generator.py # Prompt interno + generación de ejercicios
+├── main.py          # FastAPI App, endpoints, lifespan
+├── models.py        # Pydantic models (request/response)
+├── classifier.py    # OpenAI logic + heuristic fallback
+├── problem_generator.py # Internal prompt + exercise generation
 ├── requirements.txt
 ├── .env.example
 └── README.md

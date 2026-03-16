@@ -17,7 +17,7 @@ def get_client() -> AsyncOpenAI:
     return _client
 
 
-# ── Heurística local (fallback si OpenAI falla) ─────────────────────────────
+# ── Local heuristic (fallback if OpenAI fails) ──────────────────────────────
 
 def classify_heuristic(summary: EventSummary) -> ClassifyResponse:
     total_input = summary.key + summary.paste
@@ -38,7 +38,7 @@ def classify_heuristic(summary: EventSummary) -> ClassifyResponse:
     return ClassifyResponse(label=label, confidence=confidence)
 
 
-# ── Clasificador con OpenAI ──────────────────────────────────────────────────
+# ── OpenAI Classifier ────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """Eres un clasificador de comportamiento de programación.
 Tu tarea es analizar los eventos de interacción de un usuario mientras escribe código
@@ -63,7 +63,7 @@ No incluyas explicaciones, markdown ni texto adicional."""
 async def classify_with_openai(request: ClassifyRequest) -> ClassifyResponse:
     model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
-    # Tomar los últimos 50 eventos más relevantes (key, paste, delete)
+    # Take the last 50 most relevant events (key, paste, delete)
     relevant_events = [
         e for e in request.events
         if e.type in ("key", "paste", "delete", "run")
