@@ -69,7 +69,7 @@ Tu tarea es analizar métricas de interacción del usuario y código fuente para
 async def classify_with_ai(request: ClassifyRequest) -> ClassifyResponse:
     model = os.getenv("AI_CLASSIFY_MODEL", os.getenv("OPENAI_MODEL"))
 
-    # Tomar los últimos 50 eventos más relevantes (key, paste, delete)
+    # Take the last 50 most relevant events (key, paste, delete)
     relevant_events = [
         e for e in request.events
         if e.type in ("key", "paste", "delete", "run", "focus")
